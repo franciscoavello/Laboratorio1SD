@@ -2,11 +2,30 @@ package laboratorio.pkg1.sd;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileReader;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import static laboratorio.pkg1.sd.FrontService.socketClienteDesdeFrontServiceHaciaCachingService;
+import static laboratorio.pkg1.sd.FrontService.socketServidorFrontServiceParaCachingService;
 
-public class CachingService {
+public class CachingService extends Thread{
+    
+    static ArrayList<String> consultas = new ArrayList<String>();
+    static ArrayList<String> respuestas = new ArrayList<String>();
+    
+    public static String getEntry(String query) {
+        for (int i = 0; i < consultas.size(); i++) {            
+            if (consultas.get(i).equals(query)) {
+                return respuestas.get(i);
+            }
+        }
+        return null;
+    }
     
     public static int hashParticionCache(String consulta, int numParticiones){
         int resParticion=0;
@@ -30,7 +49,7 @@ public class CachingService {
         socketHaciaFrontService.close();  
     }
     
-    public static void socketServidorCachingServiceParaFrontService(int numParticiones) throws Exception{    
+    public static void socketServidorCachingServiceParaFrontService(int numParticiones, CacheLRU[] particionesCache) throws Exception{    
         
         //Variables
         String desdeFrontService;
@@ -56,7 +75,7 @@ public class CachingService {
             System.out.println("-----------------------------------------------------------------");
             System.out.println("(Caching Service) Recibí la consulta HTTP desde el Front Service:");           
             System.out.println("(Caching Service) Consulta: " + tokens_parametros[2]);
-            System.out.println("(Caching Service) HTTP METHOD: " + metodoHTTP);
+            System.out.println("(Caching Service) Metodo HTTP: " + metodoHTTP);
             System.out.println("(Caching Service) Resource: " + tokens_parametros[1]);
             System.out.println("-----------------------------------------------------------------");
             
@@ -64,20 +83,63 @@ public class CachingService {
             
             int particionAEnviar= hashParticionCache(consulta,numParticiones);
             System.out.println("Enviando la consulta '"+ consulta + "' a la particion numero " + particionAEnviar + " del cache");
-            
-            respuestaAFrontService="MISS";
-            socketClienteDesdeCachingServiceHaciaFrontService(respuestaAFrontService);
+            if(particionesCache[particionAEnviar].revisarCacheEstatico(consulta)!= null){
+                System.out.println("(Particion "+ particionAEnviar + " Cache) HIT! en el cache estatico.");
+                socketClienteDesdeCachingServiceHaciaFrontService(particionesCache[particionAEnviar].revisarCacheEstatico(consulta));
+            }
+            else{
+                System.out.println("(Particion "+ particionAEnviar + " Cache) MISS! en el cache estatico");
+                String resultadoCacheDinamico = particionesCache[particionAEnviar].revisarCacheDinamico(consulta);
+                if (resultadoCacheDinamico == null) { // MISS
+                    System.out.println("(Particion "+ particionAEnviar + " Cache) MISS! en el cache dinamico");                    
+                    String respuesta = getEntry(consulta);
+                    if(respuesta!=null){
+                        System.out.println("(Particion "+ particionAEnviar + " Cache) Agregando consulta y respuesta al cache dinamico");
+                    }
+                    particionesCache[particionAEnviar].addEntryToCache(consulta, respuesta);
+                    socketClienteDesdeCachingServiceHaciaFrontService("MISS!");
+                }else{
+                    System.out.println("(Particion "+ particionAEnviar + " Cache) HIT! en el cache dinamico");
+                    socketClienteDesdeCachingServiceHaciaFrontService(resultadoCacheDinamico);
+                }
+            }
         }
     }
-    
-    public static void main(String args[]) throws Exception{        
-        int numParticiones=7;
-        int tamCache=21;
-        CacheLRU[] particionesCache = new CacheLRU[numParticiones];
-        for(int i=0; i<3;i++){
-            particionesCache[i]= new CacheLRU(tamCache/numParticiones);
-        }        
-        socketServidorCachingServiceParaFrontService(numParticiones);
+      
+    public static void main(String args[]) throws Exception{
+        File archivo = new File ("d:/entrada.txt");
+        FileReader fr = new FileReader (archivo);
+        BufferedReader br = new BufferedReader(fr);
+        String linea = br.readLine();
+        int cantRespuestas= Integer.parseInt(linea);        
+        linea = br.readLine();
+        int tamCache=Integer.parseInt(linea);
+        linea = br.readLine();
+        int numParticiones=Integer.parseInt(linea);
+        fr.close();
+        if(numParticiones<tamCache){
+            if(tamCache%numParticiones==0){
+                System.out.println("Auto generando preguntas y respuestas...");
+                for(int i=0; i<cantRespuestas; i++){
+                    consultas.add(i, "consulta"+(i+1));
+                    respuestas.add(i, "respuesta"+(i+1));
+                }
+                System.out.println("Preguntas y respuestas generadas."); 
+                CacheLRU[] particionesCache = new CacheLRU[numParticiones];
+                for(int i=0; i<numParticiones;i++){
+                    particionesCache[i] = new CacheLRU(tamCache/numParticiones);
+                    particionesCache[i].cacheEstatico.put(consultas.get(0), respuestas.get(0));
+                }        
+                socketServidorCachingServiceParaFrontService(numParticiones,particionesCache);
+            }
+            else{
+                System.out.println("Los tamaños de cache y numero de particiones no son multiplos entre si. Ingrese valores correctos en el archivo de entrada");
+            }         
+        }
+        else{
+            System.out.println("El numero de particiones es menor al tamaño del cache. Ingrese valores correctos en el archivo de entrada");
+        }
+        
     }
     
 }

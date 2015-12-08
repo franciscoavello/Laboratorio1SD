@@ -5,12 +5,14 @@ import java.io.DataOutputStream;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class FrontService extends Thread{
     
     String query;
+
     
     public static void socketServidorFrontServiceParaCachingService() throws Exception{    
         
@@ -66,7 +68,7 @@ public class FrontService extends Thread{
         
         //Recibimos del servidor
         fromServer = inFromServer.readLine();
-        System.out.println("Server response: " + fromServer);
+        System.out.println("Respuesta servidor: " + fromServer);
         
         //Cerramos el socket
         clientSocket.close();
@@ -78,7 +80,7 @@ public class FrontService extends Thread{
     
     @Override
     public void run(){        
-        try {
+        try {                            
             System.out.println("(Front Service) Soy el thread: " + getName() + ". Enviando la query '" + query + "' al Caching Service");
             String querySinEspacios = query.replaceAll(" ", "-");
             String httpMetodo = "GET /consulta/";
@@ -92,7 +94,7 @@ public class FrontService extends Thread{
 
     public static void main(String[] args) throws Exception {
         while(true){
-          String query;  
+          String query;
           BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
           query = inFromUser.readLine();
           FrontService hilo = new FrontService(query);
