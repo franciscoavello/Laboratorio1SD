@@ -107,7 +107,7 @@ public class CachingService extends Thread{
     }
       
     public static void main(String args[]) throws Exception{
-        File archivo = new File ("d:/entrada.txt");
+        File archivo = new File ("entrada.txt");
         FileReader fr = new FileReader (archivo);
         BufferedReader br = new BufferedReader(fr);
         String linea = br.readLine();
