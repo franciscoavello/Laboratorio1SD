@@ -128,7 +128,12 @@ public class CachingService extends Thread{
                 CacheLRU[] particionesCache = new CacheLRU[numParticiones];
                 for(int i=0; i<numParticiones;i++){
                     particionesCache[i] = new CacheLRU(tamCache/numParticiones);
-                    particionesCache[i].cacheEstatico.put(consultas.get(0), respuestas.get(0));
+                    for(int j=0; j<consultas.size(); j++){
+                        if (hashParticionCache(consultas.get(j),numParticiones)==i){
+                            particionesCache[i].cacheEstatico.put(consultas.get(j), respuestas.get(j));
+                            break;
+                        }
+                    }                    
                 }        
                 socketServidorCachingServiceParaFrontService(numParticiones,particionesCache);
             }
